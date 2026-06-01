@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: retrieveInformation
+#  datasource:
+#    postgres:
+#      write:
+#        url: jdbc:postgresql://localhost:5432/postgres?currentSchema=public
+#        username: postgres
+#        password: mysecretdashboardpassword
+#        driver-class-name: org.postgresql.Driver
+#        jpa:
+#          hibernate.hbm2ddl.auto: update
+#          hibernate.default_schema: public
+#          hibernate.show_sql: "false"
+#      read:
+#        url: jdbc:postgresql://localhost:5432/postgres?currentSchema=public
+#        username: postgres
+#        password: mysecretdashboardpassword
+#        driver-class-name: org.postgresql.Driver
+#        jpa:
+#          hibernate.hbm2ddl.auto: update
+#          hibernate.default_schema: public
+#          hibernate.show_sql: "false"
+
+server:
+  port: 8081
+
+set:
+  api:
+    base-url: https://www.set.or.th/api/set
