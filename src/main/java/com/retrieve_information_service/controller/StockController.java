@@ -2,6 +2,7 @@ package com.retrieve_information_service.controller;
 
 
 import com.retrieve_information_service.dto.StockHighlightsResponse;
+import com.retrieve_information_service.exception.base.BaseException;
 import com.retrieve_information_service.service.ParserService;
 import com.retrieve_information_service.service.ScraperService;
 import jakarta.validation.constraints.Max;
@@ -10,6 +11,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -53,7 +55,6 @@ public class StockController {
             Integer years) {
 
         log.info("GET highlights — symbol={} period={} years={}", symbol, period, years);
-
         String html = scraperService.scrapeHtml(symbol);
         return ResponseEntity.ok(parserService.parse(html, symbol));
     }
