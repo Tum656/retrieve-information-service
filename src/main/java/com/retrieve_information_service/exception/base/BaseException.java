@@ -1,35 +1,36 @@
 package com.retrieve_information_service.exception.base;
 
+import com.retrieve_information_service.constant.ErrorCode;
 import org.springframework.http.HttpStatus;
 
 /**
- * Base for all custom exceptions.
- * Carries an {@link HttpStatus} so {@code GlobalExceptionHandler} can resolve
- * the response status dynamically — no per-subclass handler needed.
- *
- * <pre>
- *   // throw with any status at the call site:
- *   throw new SomeException("ticker not found", HttpStatus.NOT_FOUND);
- *
- *   // handler reads it back:
- *   ex.getHttpStatus()  →  404 NOT_FOUND
- * </pre>
+ * Abstract base for all custom exceptions.
+ * Carries {@link HttpStatus} and an error code so {@code GlobalExceptionHandler}
+ * resolves status and code dynamically — no per-subclass handler needed.
  */
-public class BaseException extends RuntimeException {
+public abstract class BaseException extends RuntimeException {
 
     private final HttpStatus httpStatus;
+    private final String errorCode;
 
-    public BaseException(String message, HttpStatus httpStatus) {
-        super(message);
+    protected BaseException(ErrorCode.Detail error, HttpStatus httpStatus) {
+        super(error.message());
+        this.errorCode  = error.code();
         this.httpStatus = httpStatus;
     }
 
-    protected BaseException(String message, HttpStatus httpStatus, Throwable cause) {
-        super(message, cause);
+    protected BaseException(ErrorCode.Detail error, String customMessage, HttpStatus httpStatus) {
+        super(customMessage);
+        this.errorCode  = error.code();
         this.httpStatus = httpStatus;
     }
 
-    public HttpStatus getHttpStatus() {
-        return httpStatus;
+    protected BaseException(ErrorCode.Detail error, HttpStatus httpStatus, Throwable cause) {
+        super(error.message(), cause);
+        this.errorCode  = error.code();
+        this.httpStatus = httpStatus;
     }
+
+    public HttpStatus getHttpStatus() { return httpStatus; }
+    public String getErrorCode()      { return errorCode; }
 }

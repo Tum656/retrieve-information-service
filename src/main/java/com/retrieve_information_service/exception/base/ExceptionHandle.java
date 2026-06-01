@@ -1,17 +1,27 @@
 package com.retrieve_information_service.exception.base;
 
-import lombok.Data;
+import com.retrieve_information_service.constant.ErrorCode;
+import com.retrieve_information_service.exception.business.BusinessException;
 import org.springframework.http.HttpStatus;
 
-@Data
-public class ExceptionHandle extends RuntimeException {
+/**
+ * Generic one-off exception for cases where creating a dedicated subclass is unnecessary.
+ * Extends {@link BusinessException} so it is automatically handled by
+ * the single {@code handleBaseException} in {@code GlobalExceptionHandler}.
+ *
+ * <p>Prefer specific subclasses when the same error type is thrown from multiple places.
+ *
+ * <pre>
+ *   throw new ExceptionHandle(ErrorCode.SCRAPER_ERROR, "Rate limit hit", HttpStatus.TOO_MANY_REQUESTS);
+ * </pre>
+ */
+public class ExceptionHandle extends BusinessException {
 
-    private final String message;
-    private final HttpStatus httpStatus;
-
-    public ExceptionHandle(String message, HttpStatus httpStatus) {
-        this.message = message;
-        this.httpStatus = httpStatus;
+    public ExceptionHandle(ErrorCode.Detail error, HttpStatus status) {
+        super(error, status);
     }
 
+    public ExceptionHandle(ErrorCode.Detail error, String customMessage, HttpStatus status) {
+        super(error, customMessage, status);
+    }
 }
