@@ -168,7 +168,8 @@ com.example.app
 │   └── UserValidator.java                       ← custom @Constraint validators
 ├── exception
 │   ├── base
-│   │   └── BaseException.java                   ← abstract + HttpStatus + errorCode
+│   │   ├── BaseException.java                   ← abstract + HttpStatus + errorCode
+│   │   └── ExceptionHandle.java                 ← generic one-off exception, extends BusinessException
 │   ├── business
 │   │   ├── BusinessException.java               ← extends BaseException, default 400
 │   │   └── ResourceNotFoundException.java       ← extends BusinessException, default 404
@@ -614,15 +615,37 @@ public class UserServiceImpl implements UserService {
 ```
 exception/
 ├── base/
-│   └── BaseException.java           ← abstract base for all custom exceptions
+│   ├── BaseException.java             ← abstract base, carries HttpStatus + errorCode
+│   └── ExceptionHandle.java           ← generic one-off, extends BusinessException
 ├── business/
-│   ├── BusinessException.java       ← base for business rule violations (4xx)
-│   └── ResourceNotFoundException.java ← 404 not found
+│   ├── BusinessException.java         ← extends BaseException, default 400
+│   └── ResourceNotFoundException.java ← extends BusinessException, default 404
 ├── system/
-│   └── ServiceException.java        ← 500 internal / infrastructure errors
+│   └── ServiceException.java          ← extends BaseException, default 500
+├── handler/
+│   └── GlobalExceptionHandler.java    ← @RestControllerAdvice
 └── response/
-    └── ErrorResponse.java           ← standard error response body
+    └── ErrorResponse.java             ← @Data @Builder, returned by handler
 ```
+
+### ExceptionHandle — when to use
+
+ใช้ `ExceptionHandle` เมื่อ error เป็น one-off ที่ไม่คุ้มสร้าง class ใหม่:
+
+```java
+// ✅ ใช้ ExceptionHandle สำหรับ error ที่ไม่ซ้ำหลายที่
+throw new ExceptionHandle(ErrorCode.SCRAPER_ERROR, "Rate limit hit", HttpStatus.TOO_MANY_REQUESTS);
+
+// ✅ ใช้ specific subclass เมื่อ error type ถูก throw หลายจุด
+throw new TickerNotFoundException(symbol);          // extends ResourceNotFoundException
+throw new ScraperUnavailableException(message);     // extends BusinessException → 503
+throw new FactsheetParseException(symbol, cause);   // extends ServiceException → 500
+```
+
+| ใช้ | เมื่อ |
+|---|---|
+| `ExceptionHandle` | error เกิดครั้งเดียว, ไม่ต้องการ catch เฉพาะ type ใน test |
+| specific subclass | error เกิดหลายจุด หรือต้องการ `catch (TickerNotFoundException e)` |
 
 ```java
 // base/BaseException.java — carries HttpStatus + errorCode, handler needs no per-exception mapping
@@ -739,22 +762,27 @@ public class UserServiceImpl implements UserService {
 
 ### GlobalExceptionHandler
 
-Handler ใช้ 2 ตัว — `BaseException` ครอบทุก custom exception อัตโนมัติผ่าน `getHttpStatus()`,
-ส่วน `MethodArgumentNotValidException` จัดการ validation error แยก
+Handler มี 3 ตัว:
+- `BaseException` — ครอบ **ทุก subclass** อัตโนมัติ (`BusinessException`, `ResourceNotFoundException`, `ServiceException`, `ExceptionHandle`, และ domain exceptions ทั้งหมด) ผ่าน `ex.getHttpStatus()` + `ex.getErrorCode()`
+- `MethodArgumentNotValidException` — จัดการ `@Valid` / `@Validated` failure แยก
+- `Exception` — catch-all สำหรับ error ที่ไม่ได้ handle
 
 ```java
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // handles ALL BaseException subclasses — status and code come from the exception itself
+    // handles ALL BaseException subclasses (including ExceptionHandle) —
+    // status and code are read dynamically from the exception itself
     @ExceptionHandler(BaseException.class)
     public ResponseEntity<ErrorResponse> handleBaseException(BaseException ex) {
-        log.warn("Business/Service exception: status={} code={} message={}", ex.getHttpStatus(), ex.getErrorCode(), ex.getMessage());
-        return ResponseEntity.status(ex.getHttpStatus()).body(
+        HttpStatus status = ex.getHttpStatus();
+        log.warn("Application exception: status={} code={} message={}",
+                status, ex.getErrorCode(), ex.getMessage());
+        return ResponseEntity.status(status).body(
                 ErrorResponse.builder()
-                        .status(ex.getHttpStatus().value())
-                        .error(ex.getHttpStatus().getReasonPhrase())
+                        .status(status.value())
+                        .error(status.getReasonPhrase())
                         .code(ex.getErrorCode())
                         .message(ex.getMessage())
                         .timestamp(LocalDateTime.now())
@@ -782,11 +810,27 @@ public class GlobalExceptionHandler {
         log.error("Unexpected error", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                 ErrorResponse.builder()
-                        .status(500).error("Internal Server Error").message("Unexpected error occurred")
+                        .status(500).error("Internal Server Error")
+                        .message("An unexpected error occurred")
                         .timestamp(LocalDateTime.now())
                         .build());
     }
 }
+```
+
+**ทุก BaseException subclass ถูก handle ด้วย handler เดียว:**
+
+```java
+// TickerNotFoundException (404) → handleBaseException → status=404 code="FACTSHEET-001"
+throw new TickerNotFoundException(symbol);
+
+// ScraperUnavailableException (503) → handleBaseException → status=503 code="FACTSHEET-003"
+throw new ScraperUnavailableException("timeout");
+
+// ExceptionHandle — generic one-off → handleBaseException → status=429
+throw new ExceptionHandle(ErrorCode.SCRAPER_ERROR, "Rate limit hit", HttpStatus.TOO_MANY_REQUESTS);
+
+// ไม่ต้องเพิ่ม @ExceptionHandler method ใหม่เมื่อสร้าง exception type ใหม่
 ```
 
 `MethodArgumentNotValidException` จะถูก throw เมื่อ `@Valid` บน `@RequestBody` fail — response เป็น `ErrorResponse` format เดียวกับทุก exception:

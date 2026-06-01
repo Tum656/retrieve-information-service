@@ -32,13 +32,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ExceptionHandle.class)
     public ResponseEntity<ErrorResponse> ExceptionHandle(ExceptionHandle ex) {
-        log.warn("Symbol not found: {}", ex.getSymbol());
         return ResponseEntity
                 .status(ex.getHttpStatus())
                 .body(ErrorResponse.builder()
                         .status(ex.getHttpStatus().value())
                         .error(ex.getHttpStatus().getReasonPhrase())
-                        .message(ex.getSymbol())
+                        .message(ex.getMessage())
                         .timestamp(LocalDateTime.now())
                         .build());
     }
